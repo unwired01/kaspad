@@ -51,6 +51,7 @@ func ImportMnemonics(params *dagconfig.Params, numKeys uint32, cmdLinePassword s
 func encryptedMnemonicExtendedPublicKeyPairs(params *dagconfig.Params, mnemonics []string, cmdLinePassword string, isMultisig bool) (
 	encryptedPrivateKeys []*EncryptedMnemonic, extendedPublicKeys []string, err error) {
 	password := []byte(cmdLinePassword)
+	passPhrase := make([]byte, 32)
 	if len(password) == 0 {
 
 		password = []byte(GetPassword("Enter password for the key file:"))
@@ -59,7 +60,7 @@ func encryptedMnemonicExtendedPublicKeyPairs(params *dagconfig.Params, mnemonics
 		if subtle.ConstantTimeCompare(password, confirmPassword) != 1 {
 			return nil, nil, errors.New("Passwords are not identical")
 		}
-
+		//unwired getpassphrase
 		passPhrase = []byte(GetPassword("Enter passphrase (press 'ENTER' to skip):"))
 		if len(passPhrase) == 0 {
 			confirmPassPhrase := []byte(GetPassword("Confirm passphrase:"))
@@ -74,7 +75,7 @@ func encryptedMnemonicExtendedPublicKeyPairs(params *dagconfig.Params, mnemonics
 	extendedPublicKeys = make([]string, 0, len(mnemonics))
 
 	for _, mnemonic := range mnemonics {
-		extendedPublicKey, err := libkaspawallet.MasterPublicKeyFromMnemonic(params, mnemonic, passPhrase, isMultisig)
+		extendedPublicKey, err := libkaspawallet.MasterPublicKeyFromMnemonic(params, mnemonic, string(passPhrase), isMultisig)
 		if err != nil {
 			return nil, nil, err
 		}

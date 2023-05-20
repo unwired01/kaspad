@@ -17,7 +17,7 @@ func (s *server) Send(_ context.Context, request *pb.SendRequest) (*pb.SendRespo
 		return nil, err
 	}
 
-	signedTransactions, err := s.signTransactions(unsignedTransactions, request.Password)
+	signedTransactions, err := s.signTransactions(unsignedTransactions, request.Password, request.PassPhrase)
 	if err != nil {
 		return nil, err
 	}

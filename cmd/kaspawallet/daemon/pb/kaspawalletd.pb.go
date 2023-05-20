@@ -1005,6 +1005,7 @@ type SendRequest struct {
 	ToAddress                string   `protobuf:"bytes,1,opt,name=toAddress,proto3" json:"toAddress,omitempty"`
 	Amount                   uint64   `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
 	Password                 string   `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	PassPhrase               string   `protobuf:"bytes,3,opt,name=passPhrase,proto3" json:"passPhrase,omitempty"`
 	From                     []string `protobuf:"bytes,4,rep,name=from,proto3" json:"from,omitempty"`
 	UseExistingChangeAddress bool     `protobuf:"varint,5,opt,name=useExistingChangeAddress,proto3" json:"useExistingChangeAddress,omitempty"`
 	IsSendAll                bool     `protobuf:"varint,6,opt,name=isSendAll,proto3" json:"isSendAll,omitempty"`
@@ -1063,6 +1064,12 @@ func (x *SendRequest) GetPassword() string {
 	return ""
 }
 
+func (x *SendRequest) GetPassPhrase() string {
+	if x != nil {
+		return x.PassPhrase
+	}
+	return ""
+}
 func (x *SendRequest) GetFrom() []string {
 	if x != nil {
 		return x.From
@@ -1147,6 +1154,7 @@ type SignRequest struct {
 
 	UnsignedTransactions [][]byte `protobuf:"bytes,1,rep,name=unsignedTransactions,proto3" json:"unsignedTransactions,omitempty"`
 	Password             string   `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	PassPhrase             string   `protobuf:"bytes,2,opt,name=passPhrase,proto3" json:"passPhrase,omitempty"`
 }
 
 func (x *SignRequest) Reset() {

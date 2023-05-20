@@ -49,10 +49,11 @@ func send(conf *sendConfig) error {
 	if err != nil {
 		return err
 	}
-
+	//unwired
 	if len(conf.Password) == 0 {
 		conf.Password = keys.GetPassword("Password:")
 	}
+	passPhrase := keys.GetPassword("Enter passphrase (press 'ENTER' to skip):")
 	mnemonics, err := keysFile.DecryptMnemonics(conf.Password)
 	if err != nil {
 		if strings.Contains(err.Error(), "message authentication failed") {
@@ -61,10 +62,10 @@ func send(conf *sendConfig) error {
 		}
 		return err
 	}
-
+	//unwired
 	signedTransactions := make([][]byte, len(createUnsignedTransactionsResponse.UnsignedTransactions))
 	for i, unsignedTransaction := range createUnsignedTransactionsResponse.UnsignedTransactions {
-		signedTransaction, err := libkaspawallet.Sign(conf.NetParams(), mnemonics, unsignedTransaction, keysFile.ECDSA)
+		signedTransaction, err := libkaspawallet.Sign(conf.NetParams(), mnemonics, passPhrase, unsignedTransaction, keysFile.ECDSA)
 		if err != nil {
 			return err
 		}

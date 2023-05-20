@@ -43,12 +43,12 @@ func TestEstimateMassAfterSignatures(t *testing.T) {
 			t.Fatalf("Error from estimateMassAfterSignatures: %s", err)
 		}
 
-		signedTxStep1Bytes, err := libkaspawallet.Sign(params, mnemonics[:1], unsignedTransactionBytes, false)
+		signedTxStep1Bytes, err := libkaspawallet.Sign(params, mnemonics[:1], "", unsignedTransactionBytes, false)
 		if err != nil {
 			t.Fatalf("Sign: %+v", err)
 		}
 
-		signedTxStep2Bytes, err := libkaspawallet.Sign(params, mnemonics[1:2], signedTxStep1Bytes, false)
+		signedTxStep2Bytes, err := libkaspawallet.Sign(params, mnemonics[1:2], "", signedTxStep1Bytes, false)
 		if err != nil {
 			t.Fatalf("Sign: %+v", err)
 		}
@@ -88,7 +88,7 @@ func testEstimateMassIncreaseForSignaturesSetUp(t *testing.T, consensusConfig *c
 			t.Fatalf("CreateMnemonic: %+v", err)
 		}
 
-		publicKeys[i], err = libkaspawallet.MasterPublicKeyFromMnemonic(&consensusConfig.Params, mnemonics[i], true)
+		publicKeys[i], err = libkaspawallet.MasterPublicKeyFromMnemonic(&consensusConfig.Params, mnemonics[i], "", true)
 		if err != nil {
 			t.Fatalf("MasterPublicKeyFromMnemonic: %+v", err)
 		}

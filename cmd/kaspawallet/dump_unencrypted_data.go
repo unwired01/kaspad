@@ -32,8 +32,8 @@ func dumpUnencryptedData(conf *dumpUnencryptedDataConfig) error {
 	if err != nil {
 		return err
 	}
-	
-	passPhrase = []byte(GetPassword("Enter passphrase (press 'ENTER' to skip):"))
+	//unwired
+	passPhrase := keys.GetPassword("Enter passphrase (press 'ENTER' to skip):")
 	mnemonicPublicKeys := make(map[string]struct{})
 	for i, mnemonic := range mnemonics {
 		fmt.Printf("Mnemonic #%d:\n%s\n\n", i+1, mnemonic)

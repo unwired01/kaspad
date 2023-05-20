@@ -1,100 +1,79 @@
-package libkaspawallet
+package main
 
 import (
-	"github.com/kaspanet/kaspad/cmd/kaspawallet/libkaspawallet/bip32"
-	"github.com/kaspanet/kaspad/cmd/kaspawallet/libkaspawallet/serialization"
-	"github.com/kaspanet/kaspad/domain/consensus/model/externalapi"
-	"github.com/kaspanet/kaspad/domain/consensus/utils/consensushashing"
-	"github.com/kaspanet/kaspad/domain/consensus/utils/txscript"
-	"github.com/kaspanet/kaspad/domain/consensus/utils/utxo"
-	"github.com/kaspanet/kaspad/domain/dagconfig"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
+
+	"github.com/kaspanet/kaspad/cmd/kaspawallet/keys"
+	"github.com/kaspanet/kaspad/cmd/kaspawallet/libkaspawallet"
 	"github.com/pkg/errors"
 )
 
-func rawTxInSignature(extendedKey *bip32.ExtendedKey, tx *externalapi.DomainTransaction, idx int, hashType consensushashing.SigHashType,
-	sighashReusedValues *consensushashing.SighashReusedValues, ecdsa bool) ([]byte, error) {
-
-	privateKey := extendedKey.PrivateKey()
-	if ecdsa {
-		return txscript.RawTxInSignatureECDSA(tx, idx, hashType, privateKey, sighashReusedValues)
+func sign(conf *signConfig) error {
+	if conf.Transaction == "" && conf.TransactionFile == "" {
+		return errors.Errorf("Either --transaction or --transaction-file is required")
+	}
+	if conf.Transaction != "" && conf.TransactionFile != "" {
+		return errors.Errorf("Both --transaction and --transaction-file cannot be passed at the same time")
 	}
 
-	schnorrKeyPair, err := privateKey.ToSchnorr()
+	keysFile, err := keys.ReadKeysFile(conf.NetParams(), conf.KeysFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return txscript.RawTxInSignature(tx, idx, hashType, schnorrKeyPair, sighashReusedValues)
-}
-
-// Sign signs the transaction with the given private keys
-func Sign(params *dagconfig.Params, mnemonics []string, serializedPSTx []byte, ecdsa bool) ([]byte, error) {
-	partiallySignedTransaction, err := serialization.DeserializePartiallySignedTransaction(serializedPSTx)
+	if len(conf.Password) == 0 {
+		conf.Password = keys.GetPassword("Password:")
+	}
+	//unwired
+	passPhrase := keys.GetPassword("Enter passphrase (press 'ENTER' to skip):")
+	privateKeys, err := keysFile.DecryptMnemonics(conf.Password)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	for _, mnemonic := range mnemonics {
-		err = sign(params, mnemonic, partiallySignedTransaction, ecdsa)
+	transactionsHex := conf.Transaction
+	if conf.TransactionFile != "" {
+		transactionHexBytes, err := ioutil.ReadFile(conf.TransactionFile)
 		if err != nil {
-			return nil, err
+			return errors.Wrapf(err, "Could not read hex from %s", conf.TransactionFile)
 		}
+		transactionsHex = strings.TrimSpace(string(transactionHexBytes))
 	}
-	return serialization.SerializePartiallySignedTransaction(partiallySignedTransaction)
-}
-
-func sign(params *dagconfig.Params, mnemonic string, partiallySignedTransaction *serialization.PartiallySignedTransaction, ecdsa bool) error {
-	if isTransactionFullySigned(partiallySignedTransaction) {
-		return nil
+	partiallySignedTransactions, err := decodeTransactionsFromHex(transactionsHex)
+	if err != nil {
+		return err
 	}
 
-	sighashReusedValues := &consensushashing.SighashReusedValues{}
-	for i, partiallySignedInput := range partiallySignedTransaction.PartiallySignedInputs {
-		prevOut := partiallySignedInput.PrevOutput
-		partiallySignedTransaction.Tx.Inputs[i].UTXOEntry = utxo.NewUTXOEntry(
-			prevOut.Value,
-			prevOut.ScriptPublicKey,
-			false, // This is a fake value, because it's irrelevant for the signature
-			0,     // This is a fake value, because it's irrelevant for the signature
-		)
-		partiallySignedTransaction.Tx.Inputs[i].SigOpCount = byte(len(partiallySignedInput.PubKeySignaturePairs))
-	}
-	
-	passPhrase = []byte(GetPassword("Enter passphrase (press 'ENTER' to skip):"))
-	signed := false
-	for i, partiallySignedInput := range partiallySignedTransaction.PartiallySignedInputs {
-		isMultisig := len(partiallySignedInput.PubKeySignaturePairs) > 1
-		path := defaultPath(isMultisig)
-		extendedKey, err := extendedKeyFromMnemonicAndPath(mnemonic, path, passPhrase, params)
+	updatedPartiallySignedTransactions := make([][]byte, len(partiallySignedTransactions))
+	for i, partiallySignedTransaction := range partiallySignedTransactions {
+		updatedPartiallySignedTransactions[i], err =
+			libkaspawallet.Sign(conf.NetParams(), privateKeys, passPhrase, partiallySignedTransaction, keysFile.ECDSA)
 		if err != nil {
 			return err
 		}
+	}
 
-		derivedKey, err := extendedKey.DeriveFromPath(partiallySignedInput.DerivationPath)
+	areAllTransactionsFullySigned := true
+	for _, updatedPartiallySignedTransaction := range updatedPartiallySignedTransactions {
+		// This is somewhat redundant to check all transactions, but we do that just-in-case
+		isFullySigned, err := libkaspawallet.IsTransactionFullySigned(updatedPartiallySignedTransaction)
 		if err != nil {
 			return err
 		}
-
-		derivedPublicKey, err := derivedKey.Public()
-		if err != nil {
-			return err
-		}
-
-		for _, pair := range partiallySignedInput.PubKeySignaturePairs {
-			if pair.ExtendedPublicKey == derivedPublicKey.String() {
-				pair.Signature, err = rawTxInSignature(derivedKey, partiallySignedTransaction.Tx, i, consensushashing.SigHashAll, sighashReusedValues, ecdsa)
-				if err != nil {
-					return err
-				}
-
-				signed = true
-			}
+		if !isFullySigned {
+			areAllTransactionsFullySigned = false
 		}
 	}
 
-	if !signed {
-		return errors.Errorf("Public key doesn't match any of the transaction public keys")
+	if areAllTransactionsFullySigned {
+		fmt.Fprintln(os.Stderr, "The transaction is signed and ready to broadcast")
+	} else {
+		fmt.Fprintln(os.Stderr, "Successfully signed transaction")
 	}
 
+	fmt.Println(encodeTransactionsToHex(updatedPartiallySignedTransactions))
 	return nil
 }
